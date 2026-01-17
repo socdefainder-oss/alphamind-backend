@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
@@ -11,6 +11,25 @@ app.use(express.json());
 const users = [];
 
 const JWT_SECRET = "alphamind_secret";
+
+// Middleware de autenticação
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token não fornecido" });
+  }
+
+  const token = authHeader.replace("Bearer ", "");
+  
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.userEmail = decoded.email;
+    next();
+  } catch (error) {
+    return res.status(403).json({ error: "Token inválido ou expirado" });
+  }
+}
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
@@ -51,6 +70,21 @@ app.post("/login", async (req, res) => {
   res.json({ token });
 });
 
+// Endpoint para validar token e retornar dados do usuário
+app.get("/me", authMiddleware, (req, res) => {
+  const user = users.find(u => u.email === req.userEmail);
+  
+  if (!user) {
+    return res.status(404).json({ error: "Usuário não encontrado" });
+  }
+
+  // Retorna dados do usuário sem a senha
+  res.json({
+    nome: user.nome,
+    email: user.email
+  });
+});
+
 app.listen(3000, () => {
-  console.log("✅ Backend AlphaMind rodando em http://localhost:3000");
+  console.log(" Backend AlphaMind rodando em http://localhost:3000");
 });
