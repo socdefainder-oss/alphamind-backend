@@ -1,19 +1,24 @@
 ﻿const { Pool } = require('pg');
+const { parse } = require('pg-connection-string');
 require('dotenv').config();
 
-// Forçar Node.js a preferir IPv4
-const dns = require('dns');
-dns.setDefaultResultOrder('ipv4first');
+// Parse da connection string
+const config = parse(process.env.DATABASE_URL);
 
-// Configuração do pool de conexões PostgreSQL
+// Configuração do pool de conexões PostgreSQL com IPv4 forçado
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  host: config.host,
+  port: config.port,
+  user: config.user,
+  password: config.password,
+  database: config.database,
   ssl: {
     rejectUnauthorized: false // Necessário para Supabase
   },
-  max: 20, // Máximo de conexões no pool
+  family: 4, // FORÇAR IPv4 (0 = ambos, 4 = IPv4, 6 = IPv6)
+  max: 20,
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000, // Aumentado para 10 segundos
+  connectionTimeoutMillis: 10000,
 });
 
 // Evento de erro
