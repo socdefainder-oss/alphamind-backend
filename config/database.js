@@ -1,5 +1,9 @@
-const { Pool } = require('pg');
+﻿const { Pool } = require('pg');
 require('dotenv').config();
+
+// Forçar Node.js a preferir IPv4
+const dns = require('dns');
+dns.setDefaultResultOrder('ipv4first');
 
 // Configuração do pool de conexões PostgreSQL
 const pool = new Pool({
@@ -9,7 +13,7 @@ const pool = new Pool({
   },
   max: 20, // Máximo de conexões no pool
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // Aumentado para 10 segundos
 });
 
 // Evento de erro
@@ -23,11 +27,12 @@ async function testConnection() {
   try {
     const client = await pool.connect();
     const result = await client.query('SELECT NOW()');
-    console.log('✅ Conectado ao PostgreSQL (Supabase):', result.rows[0].now);
+    console.log(' Conectado ao PostgreSQL (Supabase):', result.rows[0].now);
     client.release();
     return true;
   } catch (error) {
-    console.error('❌ Erro ao conectar no PostgreSQL:', error.message);
+    console.error(' Erro ao conectar no PostgreSQL:', error.message);
+    console.error(' Stack:', error.stack);
     return false;
   }
 }
