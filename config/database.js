@@ -1,6 +1,29 @@
 ﻿const { Pool } = require('pg');
 const { parse } = require('pg-connection-string');
+const dns = require('dns');
+const { promisify } = require('util');
 require('dotenv').config();
+
+const resolve4 = promisify(dns.resolve4);
+
+// Função lookup customizada que FORÇA IPv4
+async function customLookup(hostname, options, callback) {
+  try {
+    console.log(' Resolvendo DNS para:', hostname);
+    const addresses = await resolve4(hostname);
+    if (addresses && addresses.length > 0) {
+      const ipv4 = addresses[0];
+      console.log(' IPv4 resolvido:', ipv4);
+      callback(null, ipv4, 4);
+    } else {
+      throw new Error('Nenhum endereço IPv4 encontrado');
+    }
+  } catch (error) {
+    console.error(' Erro ao resolver DNS:', error.message);
+    // Fallback para lookup padrão
+    dns.lookup(hostname, { family: 4 }, callback);
+  }
+}
 
 // Parse da connection string
 const dbUrl = process.env.DATABASE_URL;
@@ -21,8 +44,7 @@ console.log(' Config:', {
   database: config.database
 });
 
-// Configuração do pool de conexões PostgreSQL
-// Para Supabase, usar Transaction Mode pooler (porta 6543) ou Session Mode (5432)
+// Configuração do pool com lookup customizado
 const pool = new Pool({
   host: config.host,
   port: config.port || 5432,
@@ -35,8 +57,8 @@ const pool = new Pool({
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
-  // Tentar forçar IPv4
-  family: 4,
+  // FORÇAR IPv4 com lookup customizado
+  lookup: customLookup,
 });
 
 // Evento de erro
