@@ -181,6 +181,9 @@ router.put('/modulos/:id', async (req, res) => {
   const { titulo, descricao, ordem, preco_avulso } = req.body;
 
   try {
+    console.log('Atualizando módulo:', req.params.id);
+    console.log('Dados recebidos:', { titulo, descricao, ordem, preco_avulso });
+
     const result = await query(
       `UPDATE modulos 
        SET titulo = COALESCE($1, titulo),
@@ -197,10 +200,13 @@ router.put('/modulos/:id', async (req, res) => {
       return res.status(404).json({ error: 'Módulo não encontrado' });
     }
 
+    console.log('Módulo atualizado:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao atualizar módulo:', error);
-    res.status(500).json({ error: 'Erro ao atualizar módulo' });
+    console.error('Erro detalhado:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: 'Erro ao atualizar módulo', details: error.message });
   }
 });
 
