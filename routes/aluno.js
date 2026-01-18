@@ -148,7 +148,7 @@ router.get('/minhas-matriculas', async (req, res) => {
        JOIN cursos c ON m.curso_id = c.id
        LEFT JOIN modulos mo ON c.id = mo.curso_id
        LEFT JOIN aulas a ON mo.id = a.modulo_id
-       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.aluno_id = m.aluno_id AND pa.concluida = true
+       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.aluno_id = m.aluno_id AND pa.concluido = true
        WHERE m.aluno_id = $1 AND m.status = 'ativa'
        GROUP BY m.id, c.id
        ORDER BY m.data_matricula DESC`,
@@ -211,10 +211,10 @@ router.get('/progresso/:cursoId', async (req, res) => {
         m.titulo as modulo_titulo,
         m.ordem as modulo_ordem,
         COUNT(DISTINCT a.id) as total_aulas,
-        COUNT(DISTINCT CASE WHEN pa.concluida = true THEN pa.id END) as aulas_concluidas,
+        COUNT(DISTINCT CASE WHEN pa.concluido = true THEN pa.id END) as aulas_concluidas,
         CASE 
           WHEN COUNT(DISTINCT a.id) > 0 
-          THEN ROUND((COUNT(DISTINCT CASE WHEN pa.concluida = true THEN pa.id END)::numeric / COUNT(DISTINCT a.id)::numeric) * 100, 2)
+          THEN ROUND((COUNT(DISTINCT CASE WHEN pa.concluido = true THEN pa.id END)::numeric / COUNT(DISTINCT a.id)::numeric) * 100, 2)
           ELSE 0 
         END as progresso_percentual
        FROM modulos m
@@ -251,13 +251,13 @@ router.post('/aulas/:aulaId/concluir', async (req, res) => {
     if (existingProgress.rows.length > 0) {
       // Atualizar para concluída
       await query(
-        'UPDATE progresso_aulas SET concluida = true, data_conclusao = NOW() WHERE aluno_id = $1 AND aula_id = $2',
+        'UPDATE progresso_aulas SET concluido = true, data_conclusao = NOW() WHERE aluno_id = $1 AND aula_id = $2',
         [userId, aulaId]
       );
     } else {
       // Inserir novo registro
       await query(
-        'INSERT INTO progresso_aulas (aluno_id, aula_id, concluida, data_conclusao) VALUES ($1, $2, true, NOW())',
+        'INSERT INTO progresso_aulas (aluno_id, aula_id, concluido, data_conclusao) VALUES ($1, $2, true, NOW())',
         [userId, aulaId]
       );
     }
@@ -276,7 +276,7 @@ router.post('/aulas/:aulaId/desconcluir', async (req, res) => {
 
   try {
     await query(
-      'UPDATE progresso_aulas SET concluida = false, data_conclusao = NULL WHERE aluno_id = $1 AND aula_id = $2',
+      'UPDATE progresso_aulas SET concluido = false, data_conclusao = NULL WHERE aluno_id = $1 AND aula_id = $2',
       [userId, aulaId]
     );
 
@@ -295,7 +295,7 @@ router.get('/modulos/:moduloId/progresso', async (req, res) => {
   try {
     const result = await query(
       `SELECT a.id, a.titulo, a.ordem, 
-        CASE WHEN pa.concluida = true THEN true ELSE false END as concluida,
+        CASE WHEN pa.concluido = true THEN true ELSE false END as concluido,
         pa.data_conclusao
        FROM aulas a
        LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.aluno_id = $1
