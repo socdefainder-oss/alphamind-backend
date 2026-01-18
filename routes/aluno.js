@@ -76,6 +76,43 @@ router.get('/cursos/:cursoId', async (req, res) => {
 
 // ========== MATRÍCULAS DO ALUNO ==========
 
+// Matricular-se em um curso
+router.post('/matricular/:cursoId', async (req, res) => {
+  const userId = req.userId;
+  const { cursoId } = req.params;
+
+  try {
+    // Verificar se já está matriculado
+    const existingMatricula = await query(
+      'SELECT * FROM matriculas WHERE user_id = $1 AND curso_id = $2',
+      [userId, cursoId]
+    );
+
+    if (existingMatricula.rows.length > 0) {
+      return res.status(400).json({ error: 'Você já está matriculado neste curso' });
+    }
+
+    // Criar matrícula (status ativa, validade 1 ano)
+    const dataValidade = new Date();
+    dataValidade.setFullYear(dataValidade.getFullYear() + 1);
+
+    const result = await query(
+      `INSERT INTO matriculas (user_id, curso_id, data_matricula, data_validade, status)
+       VALUES ($1, $2, NOW(), $3, 'ativa')
+       RETURNING *`,
+      [userId, cursoId, dataValidade]
+    );
+
+    res.status(201).json({ 
+      message: 'Matrícula realizada com sucesso!',
+      matricula: result.rows[0]
+    });
+  } catch (error) {
+    console.error('Erro ao matricular:', error);
+    res.status(500).json({ error: 'Erro ao realizar matrícula' });
+  }
+});
+
 // Listar cursos matriculados do aluno logado
 router.get('/minhas-matriculas', async (req, res) => {
   const userId = req.userId; // do authMiddleware

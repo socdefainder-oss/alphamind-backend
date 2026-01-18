@@ -1,2 +1,0 @@
-﻿const adminRoutes = require('./routes/admin');
-const alunoRoutes = require('./routes/aluno');

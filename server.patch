@@ -1,0 +1,4 @@
+7a8
+> const alunoRoutes = require('./routes/aluno');
+127a129
+> app.use("/api/aluno", authMiddleware, alunoRoutes);
