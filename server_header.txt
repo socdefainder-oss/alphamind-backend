@@ -1,0 +1,8 @@
+require("dotenv").config();
+const express = require("express");
+const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
+const { query, testConnection } = require("./config/database");
+const adminRoutes = require('./routes/admin');
+const alunoRoutes = require('./routes/aluno');
