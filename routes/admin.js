@@ -218,7 +218,7 @@ router.get('/modulos/:moduloId/aulas', async (req, res) => {
 
 // Criar nova aula
 router.post('/modulos/:moduloId/aulas', async (req, res) => {
-  const { titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada } = req.body;
+  const { titulo, tipo, conteudo_url, conteudo_texto, duracao_minutos, ordem } = req.body;
   const { moduloId } = req.params;
 
   if (!titulo || !tipo) {
@@ -227,38 +227,46 @@ router.post('/modulos/:moduloId/aulas', async (req, res) => {
 
   try {
     const result = await query(
-      `INSERT INTO aulas (modulo_id, titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada) 
+      `INSERT INTO aulas (modulo_id, titulo, tipo, video_url, descricao, duracao_minutos, ordem, ativo) 
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
        RETURNING *`,
-      [moduloId, titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada !== false]
+      [
+        moduloId, 
+        titulo, 
+        tipo === 'video' ? 'gravado' : 'gravado', // mapear para tipos do schema
+        conteudo_url || null, 
+        conteudo_texto || null, // usar descricao para guardar texto
+        duracao_minutos || null, 
+        ordem, 
+        true
+      ]
     );
 
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Erro ao criar aula:', error);
-    res.status(500).json({ error: 'Erro ao criar aula' });
-  }
-});
-
-// Atualizar aula
-router.put('/aulas/:id', async (req, res) => {
-  const { titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada } = req.body;
+    res.status(201tipo, conteudo_url, conteudo_texto, duracao_minutos, ordem } = req.body;
 
   try {
     const result = await query(
       `UPDATE aulas 
        SET titulo = COALESCE($1, titulo),
-           descricao = COALESCE($2, descricao),
-           tipo = COALESCE($3, tipo),
-           conteudo_url = COALESCE($4, conteudo_url),
-           duracao_minutos = COALESCE($5, duracao_minutos),
+           tipo = COALESCE($2, tipo),
+           video_url = $3,
+           descricao = $4,
+           duracao_minutos = $5,
            ordem = COALESCE($6, ordem),
-           liberada = COALESCE($7, liberada),
            updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $7
        RETURNING *`,
-      [titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada, req.params.id]
+      [titulo, tipo === 'video' ? 'gravado' : 'gravado', conteudo_url, conteudo_texto, duracao_minutos, ordem, req.params.id]
     );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Aula não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar aula:', error);
+    res.status(500).json({ error: 'Erro ao atualizar aula', details: error.message
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Aula não encontrada' });
