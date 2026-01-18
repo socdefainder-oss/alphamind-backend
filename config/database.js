@@ -6,25 +6,6 @@ require('dotenv').config();
 
 const resolve4 = promisify(dns.resolve4);
 
-// Função lookup customizada que FORÇA IPv4
-async function customLookup(hostname, options, callback) {
-  try {
-    console.log(' Resolvendo DNS para:', hostname);
-    const addresses = await resolve4(hostname);
-    if (addresses && addresses.length > 0) {
-      const ipv4 = addresses[0];
-      console.log(' IPv4 resolvido:', ipv4);
-      callback(null, ipv4, 4);
-    } else {
-      throw new Error('Nenhum endereço IPv4 encontrado');
-    }
-  } catch (error) {
-    console.error(' Erro ao resolver DNS:', error.message);
-    // Fallback para lookup padrão
-    dns.lookup(hostname, { family: 4 }, callback);
-  }
-}
-
 // Parse da connection string
 const dbUrl = process.env.DATABASE_URL;
 console.log(' DATABASE_URL:', dbUrl ? 'Definido' : 'UNDEFINED');
@@ -37,39 +18,80 @@ if (!dbUrl) {
 const config = parse(dbUrl);
 
 // Log da configuração (sem senha)
-console.log(' Config:', {
+console.log(' Config original:', {
   host: config.host,
   port: config.port,
   user: config.user,
   database: config.database
 });
 
-// Configuração do pool com lookup customizado
-const pool = new Pool({
-  host: config.host,
-  port: config.port || 5432,
-  user: config.user,
-  password: config.password,
-  database: config.database,
-  ssl: {
-    rejectUnauthorized: false
-  },
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  // FORÇAR IPv4 com lookup customizado
-  lookup: customLookup,
-});
+// Função para resolver DNS para IPv4 ANTES de criar o Pool
+async function resolveToIPv4(hostname) {
+  try {
+    console.log(' Resolvendo DNS para IPv4:', hostname);
+    const addresses = await resolve4(hostname);
+    if (addresses && addresses.length > 0) {
+      const ipv4 = addresses[0];
+      console.log(' IPv4 resolvido:', ipv4);
+      return ipv4;
+    }
+    throw new Error('Nenhum endereço IPv4 encontrado');
+  } catch (error) {
+    console.error(' Erro ao resolver para IPv4:', error.message);
+    console.log(' Usando hostname original:', hostname);
+    return hostname;
+  }
+}
 
-// Evento de erro
-pool.on('error', (err) => {
-  console.error(' Erro inesperado no pool do PostgreSQL', err);
-  process.exit(-1);
+// Criar pool com IP resolvido
+async function createPool() {
+  // Resolver hostname para IPv4
+  const host = await resolveToIPv4(config.host);
+  
+  console.log(' Config final:', {
+    host: host,
+    port: config.port,
+    user: config.user,
+    database: config.database
+  });
+
+  return new Pool({
+    host: host, // Usar IP IPv4 direto
+    port: config.port || 5432,
+    user: config.user,
+    password: config.password,
+    database: config.database,
+    ssl: {
+      rejectUnauthorized: false
+    },
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+  });
+}
+
+// Criar pool de forma síncrona
+let pool;
+let poolPromise = createPool().then(p => {
+  pool = p;
+  
+  // Evento de erro
+  pool.on('error', (err) => {
+    console.error(' Erro inesperado no pool do PostgreSQL', err);
+    process.exit(-1);
+  });
+  
+  return pool;
+}).catch(err => {
+  console.error(' Erro ao criar pool:', err);
+  process.exit(1);
 });
 
 // Função para testar conexão
 async function testConnection() {
   try {
+    console.log(' Aguardando pool estar pronto...');
+    await poolPromise;
     console.log(' Tentando conectar ao PostgreSQL...');
     const client = await pool.connect();
     const result = await client.query('SELECT NOW()');
@@ -86,6 +108,7 @@ async function testConnection() {
 
 // Função auxiliar para queries
 async function query(text, params) {
+  await poolPromise; // Garantir que pool está pronto
   const start = Date.now();
   try {
     const res = await pool.query(text, params);
@@ -99,7 +122,7 @@ async function query(text, params) {
 }
 
 module.exports = {
-  pool,
+  get pool() { return pool; },
   query,
   testConnection
 };
