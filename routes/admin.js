@@ -242,7 +242,16 @@ router.post('/modulos/:moduloId/aulas', async (req, res) => {
       ]
     );
 
-    res.status(201tipo, conteudo_url, conteudo_texto, duracao_minutos, ordem } = req.body;
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar aula:', error);
+    res.status(500).json({ error: 'Erro ao criar aula', details: error.message });
+  }
+});
+
+// Atualizar aula
+router.put('/aulas/:id', async (req, res) => {
+  const { titulo, tipo, conteudo_url, conteudo_texto, duracao_minutos, ordem } = req.body;
 
   try {
     const result = await query(
@@ -266,16 +275,7 @@ router.post('/modulos/:moduloId/aulas', async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao atualizar aula:', error);
-    res.status(500).json({ error: 'Erro ao atualizar aula', details: error.message
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Aula não encontrada' });
-    }
-
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Erro ao atualizar aula:', error);
-    res.status(500).json({ error: 'Erro ao atualizar aula' });
+    res.status(500).json({ error: 'Erro ao atualizar aula', details: error.message });
   }
 });
 
