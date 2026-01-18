@@ -130,6 +130,7 @@ router.get('/minhas-matriculas', async (req, res) => {
   const userId = req.userId; // do authMiddleware
 
   try {
+    console.log('Buscando matrículas para userId:', userId);
     const result = await query(
       `SELECT m.*, c.*,
         m.id as matricula_id,
@@ -153,10 +154,13 @@ router.get('/minhas-matriculas', async (req, res) => {
        ORDER BY m.data_matricula DESC`,
       [userId]
     );
+    console.log('Matrículas encontradas:', result.rows.length);
     res.json(result.rows);
   } catch (error) {
     console.error('Erro ao listar matrículas:', error);
-    res.status(500).json({ error: 'Erro ao listar matrículas' });
+    console.error('Erro detalhado:', error.message);
+    console.error('Stack:', error.stack);
+    res.status(500).json({ error: 'Erro ao listar matrículas', details: error.message });
   }
 });
 
