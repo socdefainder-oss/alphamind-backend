@@ -44,43 +44,43 @@ router.get('/cursos/:id', async (req, res) => {
 
 // Criar novo curso
 router.post('/cursos', async (req, res) => {
-  const { titulo, descricao, preco, duracao_meses, ativo } = req.body;
+  const { titulo, descricao, preco_total, duracao_estimada_horas, ativo } = req.body;
 
-  if (!titulo || !descricao || !preco) {
+  if (!titulo || !descricao || !preco_total) {
     return res.status(400).json({ error: 'Preencha título, descrição e preço' });
   }
 
   try {
     const result = await query(
-      `INSERT INTO cursos (titulo, descricao, preco, duracao_meses, ativo) 
+      `INSERT INTO cursos (titulo, descricao, preco_total, duracao_estimada_horas, ativo) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING *`,
-      [titulo, descricao, preco, duracao_meses || 12, ativo !== false]
+      [titulo, descricao, preco_total, duracao_estimada_horas || 0, ativo !== false]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao criar curso:', error);
-    res.status(500).json({ error: 'Erro ao criar curso' });
+    res.status(500).json({ error: 'Erro ao criar curso', message: error.message });
   }
 });
 
 // Atualizar curso
 router.put('/cursos/:id', async (req, res) => {
-  const { titulo, descricao, preco, duracao_meses, ativo } = req.body;
+  const { titulo, descricao, preco_total, duracao_estimada_horas, ativo } = req.body;
 
   try {
     const result = await query(
       `UPDATE cursos 
        SET titulo = COALESCE($1, titulo),
            descricao = COALESCE($2, descricao),
-           preco = COALESCE($3, preco),
-           duracao_meses = COALESCE($4, duracao_meses),
+           preco_total = COALESCE($3, preco_total),
+           duracao_estimada_horas = COALESCE($4, duracao_estimada_horas),
            ativo = COALESCE($5, ativo),
            updated_at = NOW()
        WHERE id = $6
        RETURNING *`,
-      [titulo, descricao, preco, duracao_meses, ativo, req.params.id]
+      [titulo, descricao, preco_total, duracao_estimada_horas, ativo, req.params.id]
     );
 
     if (result.rows.length === 0) {
@@ -90,7 +90,7 @@ router.put('/cursos/:id', async (req, res) => {
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao atualizar curso:', error);
-    res.status(500).json({ error: 'Erro ao atualizar curso' });
+    res.status(500).json({ error: 'Erro ao atualizar curso', message: error.message });
   }
 });
 
