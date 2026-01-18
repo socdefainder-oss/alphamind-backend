@@ -132,7 +132,7 @@ router.get('/cursos/:cursoId/modulos', async (req, res) => {
 
 // Criar novo módulo
 router.post('/cursos/:cursoId/modulos', async (req, res) => {
-  const { titulo, descricao, ordem, preco_avulso } = req.body;
+  const { titulo, descricao, ordem, preco } = req.body;
   const { cursoId } = req.params;
 
   if (!titulo) {
@@ -141,16 +141,17 @@ router.post('/cursos/:cursoId/modulos', async (req, res) => {
 
   try {
     const result = await query(
-      `INSERT INTO modulos (curso_id, titulo, descricao, ordem, preco_avulso) 
+      `INSERT INTO modulos (curso_id, titulo, descricao, ordem, preco) 
        VALUES ($1, $2, $3, $4, $5) 
        RETURNING *`,
-      [cursoId, titulo, descricao, ordem, preco_avulso]
+      [cursoId, titulo, descricao, ordem, preco || 0]
     );
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
     console.error('Erro ao criar módulo:', error);
-    res.status(500).json({ error: 'Erro ao criar módulo' });
+    console.error('Erro detalhado:', error.message);
+    res.status(500).json({ error: 'Erro ao criar módulo', details: error.message });
   }
 });
 
@@ -178,22 +179,22 @@ router.get('/modulos/:id', async (req, res) => {
 
 // Atualizar módulo
 router.put('/modulos/:id', async (req, res) => {
-  const { titulo, descricao, ordem, preco_avulso } = req.body;
+  const { titulo, descricao, ordem, preco } = req.body;
 
   try {
     console.log('Atualizando módulo:', req.params.id);
-    console.log('Dados recebidos:', { titulo, descricao, ordem, preco_avulso });
+    console.log('Dados recebidos:', { titulo, descricao, ordem, preco });
 
     const result = await query(
       `UPDATE modulos 
        SET titulo = COALESCE($1, titulo),
            descricao = COALESCE($2, descricao),
            ordem = COALESCE($3, ordem),
-           preco_avulso = COALESCE($4, preco_avulso),
+           preco = COALESCE($4, preco),
            updated_at = NOW()
        WHERE id = $5
        RETURNING *`,
-      [titulo, descricao, ordem, preco_avulso, req.params.id]
+      [titulo, descricao, ordem, preco, req.params.id]
     );
 
     if (result.rows.length === 0) {
