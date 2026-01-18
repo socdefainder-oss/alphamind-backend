@@ -84,7 +84,7 @@ router.post('/matricular/:cursoId', async (req, res) => {
   try {
     // Verificar se já está matriculado
     const existingMatricula = await query(
-      'SELECT * FROM matriculas WHERE user_id = $1 AND curso_id = $2',
+      'SELECT * FROM matriculas WHERE aluno_id = $1 AND curso_id = $2',
       [userId, cursoId]
     );
 
@@ -92,15 +92,27 @@ router.post('/matricular/:cursoId', async (req, res) => {
       return res.status(400).json({ error: 'Você já está matriculado neste curso' });
     }
 
+    // Buscar dados do curso
+    const cursoResult = await query(
+      'SELECT preco_total FROM cursos WHERE id = $1',
+      [cursoId]
+    );
+
+    if (cursoResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Curso não encontrado' });
+    }
+
+    const curso = cursoResult.rows[0];
+
     // Criar matrícula (status ativa, validade 1 ano)
-    const dataValidade = new Date();
-    dataValidade.setFullYear(dataValidade.getFullYear() + 1);
+    const dataExpiracao = new Date();
+    dataExpiracao.setFullYear(dataExpiracao.getFullYear() + 1);
 
     const result = await query(
-      `INSERT INTO matriculas (user_id, curso_id, data_matricula, data_validade, status)
-       VALUES ($1, $2, NOW(), $3, 'ativa')
+      `INSERT INTO matriculas (aluno_id, curso_id, tipo, status, data_matricula, data_expiracao, valor_pago, desconto_aplicado)
+       VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7)
        RETURNING *`,
-      [userId, cursoId, dataValidade]
+      [userId, cursoId, 'completo', 'ativa', dataExpiracao, curso.preco_total || 0, 0]
     );
 
     res.status(201).json({ 
@@ -109,7 +121,7 @@ router.post('/matricular/:cursoId', async (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao matricular:', error);
-    res.status(500).json({ error: 'Erro ao realizar matrícula' });
+    res.status(500).json({ error: 'Erro ao realizar matrícula', details: error.message });
   }
 });
 
@@ -122,7 +134,7 @@ router.get('/minhas-matriculas', async (req, res) => {
       `SELECT m.*, c.*,
         m.id as matricula_id,
         m.data_matricula,
-        m.data_validade,
+        m.data_expiracao,
         m.status as status_matricula,
         COUNT(DISTINCT pa.id) as aulas_concluidas,
         COUNT(DISTINCT a.id) as total_aulas,
@@ -135,8 +147,8 @@ router.get('/minhas-matriculas', async (req, res) => {
        JOIN cursos c ON m.curso_id = c.id
        LEFT JOIN modulos mo ON c.id = mo.curso_id
        LEFT JOIN aulas a ON mo.id = a.modulo_id
-       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.user_id = m.user_id AND pa.concluida = true
-       WHERE m.user_id = $1 AND m.status = 'ativa'
+       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.aluno_id = m.aluno_id AND pa.concluida = true
+       WHERE m.aluno_id = $1 AND m.status = 'ativa'
        GROUP BY m.id, c.id
        ORDER BY m.data_matricula DESC`,
       [userId]
@@ -155,7 +167,7 @@ router.get('/matricula/:cursoId', async (req, res) => {
   try {
     const result = await query(
       `SELECT * FROM matriculas 
-       WHERE user_id = $1 AND curso_id = $2 AND status = 'ativa'`,
+       WHERE aluno_id = $1 AND curso_id = $2 AND status = 'ativa'`,
       [userId, req.params.cursoId]
     );
 
@@ -180,7 +192,7 @@ router.get('/progresso/:cursoId', async (req, res) => {
   try {
     // Verificar se está matriculado
     const matriculaResult = await query(
-      'SELECT * FROM matriculas WHERE user_id = $1 AND curso_id = $2 AND status = $3',
+      'SELECT * FROM matriculas WHERE aluno_id = $1 AND curso_id = $2 AND status = $3',
       [userId, cursoId, 'ativa']
     );
 
@@ -203,7 +215,7 @@ router.get('/progresso/:cursoId', async (req, res) => {
         END as progresso_percentual
        FROM modulos m
        LEFT JOIN aulas a ON m.id = a.modulo_id
-       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.user_id = $1
+       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.aluno_id = $1
        WHERE m.curso_id = $2
        GROUP BY m.id
        ORDER BY m.ordem`,
@@ -228,20 +240,20 @@ router.post('/aulas/:aulaId/concluir', async (req, res) => {
   try {
     // Verificar se já existe progresso para essa aula
     const existingProgress = await query(
-      'SELECT * FROM progresso_aulas WHERE user_id = $1 AND aula_id = $2',
+      'SELECT * FROM progresso_aulas WHERE aluno_id = $1 AND aula_id = $2',
       [userId, aulaId]
     );
 
     if (existingProgress.rows.length > 0) {
       // Atualizar para concluída
       await query(
-        'UPDATE progresso_aulas SET concluida = true, data_conclusao = NOW() WHERE user_id = $1 AND aula_id = $2',
+        'UPDATE progresso_aulas SET concluida = true, data_conclusao = NOW() WHERE aluno_id = $1 AND aula_id = $2',
         [userId, aulaId]
       );
     } else {
       // Inserir novo registro
       await query(
-        'INSERT INTO progresso_aulas (user_id, aula_id, concluida, data_conclusao) VALUES ($1, $2, true, NOW())',
+        'INSERT INTO progresso_aulas (aluno_id, aula_id, concluida, data_conclusao) VALUES ($1, $2, true, NOW())',
         [userId, aulaId]
       );
     }
@@ -260,7 +272,7 @@ router.post('/aulas/:aulaId/desconcluir', async (req, res) => {
 
   try {
     await query(
-      'UPDATE progresso_aulas SET concluida = false, data_conclusao = NULL WHERE user_id = $1 AND aula_id = $2',
+      'UPDATE progresso_aulas SET concluida = false, data_conclusao = NULL WHERE aluno_id = $1 AND aula_id = $2',
       [userId, aulaId]
     );
 
@@ -282,7 +294,7 @@ router.get('/modulos/:moduloId/progresso', async (req, res) => {
         CASE WHEN pa.concluida = true THEN true ELSE false END as concluida,
         pa.data_conclusao
        FROM aulas a
-       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.user_id = $1
+       LEFT JOIN progresso_aulas pa ON a.id = pa.aula_id AND pa.aluno_id = $1
        WHERE a.modulo_id = $2
        ORDER BY a.ordem`,
       [userId, moduloId]
