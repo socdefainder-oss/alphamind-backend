@@ -4,6 +4,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { query, testConnection } = require("./config/database");
+const adminRoutes = require("./routes/admin");
 
 const app = express();
 app.use(cors());
@@ -154,6 +155,9 @@ app.get("/me", authMiddleware, async (req, res) => {
 app.get("/admin/test", authMiddleware, adminMiddleware, (req, res) => {
   res.json({ message: "Você é um administrador!" });
 });
+
+// Rotas administrativas (protegidas por authMiddleware e adminMiddleware)
+app.use("/admin", authMiddleware, adminMiddleware, adminRoutes);
 
 // Iniciar servidor
 const PORT = process.env.PORT || 3000;

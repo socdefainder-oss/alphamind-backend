@@ -1,0 +1,290 @@
+const express = require('express');
+const router = express.Router();
+const { query } = require('../config/database');
+
+// ========== CURSOS ==========
+
+// Listar todos os cursos
+router.get('/cursos', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT c.*, 
+        (SELECT COUNT(*) FROM modulos WHERE curso_id = c.id) as total_modulos
+       FROM cursos c 
+       ORDER BY c.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar cursos:', error);
+    res.status(500).json({ error: 'Erro ao listar cursos' });
+  }
+});
+
+// Buscar curso por ID
+router.get('/cursos/:id', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT c.*, 
+        (SELECT COUNT(*) FROM modulos WHERE curso_id = c.id) as total_modulos
+       FROM cursos c 
+       WHERE c.id = $1`,
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Curso não encontrado' });
+    }
+    
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao buscar curso:', error);
+    res.status(500).json({ error: 'Erro ao buscar curso' });
+  }
+});
+
+// Criar novo curso
+router.post('/cursos', async (req, res) => {
+  const { titulo, descricao, preco, duracao_meses, ativo } = req.body;
+
+  if (!titulo || !descricao || !preco) {
+    return res.status(400).json({ error: 'Preencha título, descrição e preço' });
+  }
+
+  try {
+    const result = await query(
+      `INSERT INTO cursos (titulo, descricao, preco, duracao_meses, ativo) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING *`,
+      [titulo, descricao, preco, duracao_meses || 12, ativo !== false]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar curso:', error);
+    res.status(500).json({ error: 'Erro ao criar curso' });
+  }
+});
+
+// Atualizar curso
+router.put('/cursos/:id', async (req, res) => {
+  const { titulo, descricao, preco, duracao_meses, ativo } = req.body;
+
+  try {
+    const result = await query(
+      `UPDATE cursos 
+       SET titulo = COALESCE($1, titulo),
+           descricao = COALESCE($2, descricao),
+           preco = COALESCE($3, preco),
+           duracao_meses = COALESCE($4, duracao_meses),
+           ativo = COALESCE($5, ativo),
+           updated_at = NOW()
+       WHERE id = $6
+       RETURNING *`,
+      [titulo, descricao, preco, duracao_meses, ativo, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Curso não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar curso:', error);
+    res.status(500).json({ error: 'Erro ao atualizar curso' });
+  }
+});
+
+// Deletar curso
+router.delete('/cursos/:id', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM cursos WHERE id = $1 RETURNING id', [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Curso não encontrado' });
+    }
+
+    res.json({ message: 'Curso deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar curso:', error);
+    res.status(500).json({ error: 'Erro ao deletar curso' });
+  }
+});
+
+// ========== MÓDULOS ==========
+
+// Listar módulos de um curso
+router.get('/cursos/:cursoId/modulos', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT m.*, 
+        (SELECT COUNT(*) FROM aulas WHERE modulo_id = m.id) as total_aulas
+       FROM modulos m 
+       WHERE m.curso_id = $1 
+       ORDER BY m.ordem`,
+      [req.params.cursoId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar módulos:', error);
+    res.status(500).json({ error: 'Erro ao listar módulos' });
+  }
+});
+
+// Criar novo módulo
+router.post('/cursos/:cursoId/modulos', async (req, res) => {
+  const { titulo, descricao, ordem, preco_avulso } = req.body;
+  const { cursoId } = req.params;
+
+  if (!titulo) {
+    return res.status(400).json({ error: 'Título é obrigatório' });
+  }
+
+  try {
+    const result = await query(
+      `INSERT INTO modulos (curso_id, titulo, descricao, ordem, preco_avulso) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING *`,
+      [cursoId, titulo, descricao, ordem, preco_avulso]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar módulo:', error);
+    res.status(500).json({ error: 'Erro ao criar módulo' });
+  }
+});
+
+// Atualizar módulo
+router.put('/modulos/:id', async (req, res) => {
+  const { titulo, descricao, ordem, preco_avulso } = req.body;
+
+  try {
+    const result = await query(
+      `UPDATE modulos 
+       SET titulo = COALESCE($1, titulo),
+           descricao = COALESCE($2, descricao),
+           ordem = COALESCE($3, ordem),
+           preco_avulso = COALESCE($4, preco_avulso),
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING *`,
+      [titulo, descricao, ordem, preco_avulso, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar módulo:', error);
+    res.status(500).json({ error: 'Erro ao atualizar módulo' });
+  }
+});
+
+// Deletar módulo
+router.delete('/modulos/:id', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM modulos WHERE id = $1 RETURNING id', [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo não encontrado' });
+    }
+
+    res.json({ message: 'Módulo deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar módulo:', error);
+    res.status(500).json({ error: 'Erro ao deletar módulo' });
+  }
+});
+
+// ========== AULAS ==========
+
+// Listar aulas de um módulo
+router.get('/modulos/:moduloId/aulas', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT * FROM aulas 
+       WHERE modulo_id = $1 
+       ORDER BY ordem`,
+      [req.params.moduloId]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar aulas:', error);
+    res.status(500).json({ error: 'Erro ao listar aulas' });
+  }
+});
+
+// Criar nova aula
+router.post('/modulos/:moduloId/aulas', async (req, res) => {
+  const { titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada } = req.body;
+  const { moduloId } = req.params;
+
+  if (!titulo || !tipo) {
+    return res.status(400).json({ error: 'Título e tipo são obrigatórios' });
+  }
+
+  try {
+    const result = await query(
+      `INSERT INTO aulas (modulo_id, titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+       RETURNING *`,
+      [moduloId, titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada !== false]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar aula:', error);
+    res.status(500).json({ error: 'Erro ao criar aula' });
+  }
+});
+
+// Atualizar aula
+router.put('/aulas/:id', async (req, res) => {
+  const { titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada } = req.body;
+
+  try {
+    const result = await query(
+      `UPDATE aulas 
+       SET titulo = COALESCE($1, titulo),
+           descricao = COALESCE($2, descricao),
+           tipo = COALESCE($3, tipo),
+           conteudo_url = COALESCE($4, conteudo_url),
+           duracao_minutos = COALESCE($5, duracao_minutos),
+           ordem = COALESCE($6, ordem),
+           liberada = COALESCE($7, liberada),
+           updated_at = NOW()
+       WHERE id = $8
+       RETURNING *`,
+      [titulo, descricao, tipo, conteudo_url, duracao_minutos, ordem, liberada, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Aula não encontrada' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar aula:', error);
+    res.status(500).json({ error: 'Erro ao atualizar aula' });
+  }
+});
+
+// Deletar aula
+router.delete('/aulas/:id', async (req, res) => {
+  try {
+    const result = await query('DELETE FROM aulas WHERE id = $1 RETURNING id', [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Aula não encontrada' });
+    }
+
+    res.json({ message: 'Aula deletada com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar aula:', error);
+    res.status(500).json({ error: 'Erro ao deletar aula' });
+  }
+});
+
+module.exports = router;
