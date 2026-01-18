@@ -154,6 +154,28 @@ router.post('/cursos/:cursoId/modulos', async (req, res) => {
   }
 });
 
+// Buscar módulo específico por ID
+router.get('/modulos/:id', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT m.*, c.titulo as curso_titulo, c.id as curso_id
+       FROM modulos m
+       LEFT JOIN cursos c ON m.curso_id = c.id
+       WHERE m.id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Módulo não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao buscar módulo:', error);
+    res.status(500).json({ error: 'Erro ao buscar módulo' });
+  }
+});
+
 // Atualizar módulo
 router.put('/modulos/:id', async (req, res) => {
   const { titulo, descricao, ordem, preco_avulso } = req.body;
