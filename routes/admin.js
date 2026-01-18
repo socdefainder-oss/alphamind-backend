@@ -44,7 +44,7 @@ router.get('/cursos/:id', async (req, res) => {
 
 // Criar novo curso
 router.post('/cursos', async (req, res) => {
-  const { titulo, descricao, preco_total, duracao_estimada_horas, ativo } = req.body;
+  const { titulo, descricao, thumbnail_url, preco_total, duracao_estimada_horas, ativo } = req.body;
 
   if (!titulo || !descricao || !preco_total) {
     return res.status(400).json({ error: 'Preencha título, descrição e preço' });
@@ -52,10 +52,10 @@ router.post('/cursos', async (req, res) => {
 
   try {
     const result = await query(
-      `INSERT INTO cursos (titulo, descricao, preco_total, duracao_estimada_horas, ativo) 
-       VALUES ($1, $2, $3, $4, $5) 
+      `INSERT INTO cursos (titulo, descricao, thumbnail_url, preco_total, duracao_estimada_horas, ativo) 
+       VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
-      [titulo, descricao, preco_total, duracao_estimada_horas || 0, ativo !== false]
+      [titulo, descricao, thumbnail_url || null, preco_total, duracao_estimada_horas || 0, ativo !== false]
     );
 
     res.status(201).json(result.rows[0]);
@@ -67,20 +67,21 @@ router.post('/cursos', async (req, res) => {
 
 // Atualizar curso
 router.put('/cursos/:id', async (req, res) => {
-  const { titulo, descricao, preco_total, duracao_estimada_horas, ativo } = req.body;
+  const { titulo, descricao, thumbnail_url, preco_total, duracao_estimada_horas, ativo } = req.body;
 
   try {
     const result = await query(
       `UPDATE cursos 
        SET titulo = COALESCE($1, titulo),
            descricao = COALESCE($2, descricao),
-           preco_total = COALESCE($3, preco_total),
-           duracao_estimada_horas = COALESCE($4, duracao_estimada_horas),
-           ativo = COALESCE($5, ativo),
+           thumbnail_url = COALESCE($3, thumbnail_url),
+           preco_total = COALESCE($4, preco_total),
+           duracao_estimada_horas = COALESCE($5, duracao_estimada_horas),
+           ativo = COALESCE($6, ativo),
            updated_at = NOW()
-       WHERE id = $6
+       WHERE id = $7
        RETURNING *`,
-      [titulo, descricao, preco_total, duracao_estimada_horas, ativo, req.params.id]
+      [titulo, descricao, thumbnail_url, preco_total, duracao_estimada_horas, ativo, req.params.id]
     );
 
     if (result.rows.length === 0) {
