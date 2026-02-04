@@ -64,4 +64,6 @@ async function query(text, params) {
 
 module.exports = {
   pool,
+  query,
+  testConnection
 };
