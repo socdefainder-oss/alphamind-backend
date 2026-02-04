@@ -326,4 +326,209 @@ router.delete('/aulas/:id', async (req, res) => {
   }
 });
 
+// ========== USUÁRIOS ==========
+
+// Listar todos os usuários
+router.get('/users', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT 
+        u.id, 
+        u.nome, 
+        u.email, 
+        u.role, 
+        u.ativo,
+        u.created_at,
+        u.updated_at,
+        COUNT(DISTINCT m.curso_id) as total_cursos_matriculados,
+        COUNT(DISTINCT p.id) as total_aulas_assistidas
+       FROM users u
+       LEFT JOIN matriculas m ON u.id = m.user_id
+       LEFT JOIN progresso p ON u.id = p.user_id
+       GROUP BY u.id
+       ORDER BY u.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Erro ao listar usuários:', error);
+    res.status(500).json({ error: 'Erro ao listar usuários' });
+  }
+});
+
+// Buscar usuário por ID com detalhes
+router.get('/users/:id', async (req, res) => {
+  try {
+    const userResult = await query(
+      `SELECT id, nome, email, role, ativo, created_at, updated_at 
+       FROM users WHERE id = $1`,
+      [req.params.id]
+    );
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const user = userResult.rows[0];
+
+    // Buscar cursos matriculados
+    const cursosResult = await query(
+      `SELECT c.id, c.titulo, m.data_matricula, m.progresso
+       FROM matriculas m
+       JOIN cursos c ON m.curso_id = c.id
+       WHERE m.user_id = $1
+       ORDER BY m.data_matricula DESC`,
+      [req.params.id]
+    );
+
+    user.cursos_matriculados = cursosResult.rows;
+
+    res.json(user);
+  } catch (error) {
+    console.error('Erro ao buscar usuário:', error);
+    res.status(500).json({ error: 'Erro ao buscar usuário' });
+  }
+});
+
+// Buscar progresso detalhado do usuário
+router.get('/users/:id/progress', async (req, res) => {
+  try {
+    // Buscar aulas assistidas por curso
+    const progressoResult = await query(
+      `SELECT 
+        c.id as curso_id,
+        c.titulo as curso_titulo,
+        m.progresso as progresso_geral,
+        json_agg(
+          json_build_object(
+            'aula_id', a.id,
+            'aula_titulo', a.titulo,
+            'modulo_titulo', mo.titulo,
+            'assistido_em', p.assistido_em,
+            'concluido', p.concluido
+          ) ORDER BY mo.ordem, a.ordem
+        ) as aulas
+       FROM matriculas m
+       JOIN cursos c ON m.curso_id = c.id
+       LEFT JOIN modulos mo ON mo.curso_id = c.id
+       LEFT JOIN aulas a ON a.modulo_id = mo.id
+       LEFT JOIN progresso p ON p.aula_id = a.id AND p.user_id = m.user_id
+       WHERE m.user_id = $1
+       GROUP BY c.id, c.titulo, m.progresso
+       ORDER BY c.titulo`,
+      [req.params.id]
+    );
+
+    res.json(progressoResult.rows);
+  } catch (error) {
+    console.error('Erro ao buscar progresso:', error);
+    res.status(500).json({ error: 'Erro ao buscar progresso' });
+  }
+});
+
+// Criar novo usuário
+router.post('/users', async (req, res) => {
+  const { nome, email, password, role, ativo } = req.body;
+
+  if (!nome || !email || !password) {
+    return res.status(400).json({ error: 'Nome, email e senha são obrigatórios' });
+  }
+
+  if (!['admin', 'aluno'].includes(role)) {
+    return res.status(400).json({ error: 'Role deve ser admin ou aluno' });
+  }
+
+  try {
+    // Verificar se email já existe
+    const checkEmail = await query('SELECT id FROM users WHERE email = $1', [email]);
+    if (checkEmail.rows.length > 0) {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await query(
+      `INSERT INTO users (nome, email, password, role, ativo) 
+       VALUES ($1, $2, $3, $4, $5) 
+       RETURNING id, nome, email, role, ativo, created_at`,
+      [nome, email, hashedPassword, role, ativo !== false]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao criar usuário:', error);
+    res.status(500).json({ error: 'Erro ao criar usuário', message: error.message });
+  }
+});
+
+// Atualizar usuário (incluindo ativar/desativar)
+router.put('/users/:id', async (req, res) => {
+  const { nome, email, role, ativo, password } = req.body;
+
+  try {
+    // Se password foi enviado, atualizar também
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = await bcrypt.hash(password, 10);
+      
+      const result = await query(
+        `UPDATE users 
+         SET nome = COALESCE($1, nome),
+             email = COALESCE($2, email),
+             role = COALESCE($3, role),
+             ativo = COALESCE($4, ativo),
+             password = $5,
+             updated_at = NOW()
+         WHERE id = $6
+         RETURNING id, nome, email, role, ativo, created_at, updated_at`,
+        [nome, email, role, ativo, hashedPassword, req.params.id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+
+      return res.json(result.rows[0]);
+    }
+
+    const result = await query(
+      `UPDATE users 
+       SET nome = COALESCE($1, nome),
+           email = COALESCE($2, email),
+           role = COALESCE($3, role),
+           ativo = COALESCE($4, ativo),
+           updated_at = NOW()
+       WHERE id = $5
+       RETURNING id, nome, email, role, ativo, created_at, updated_at`,
+      [nome, email, role, ativo, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Erro ao atualizar usuário:', error);
+    res.status(500).json({ error: 'Erro ao atualizar usuário', message: error.message });
+  }
+});
+
+// Deletar usuário
+router.delete('/users/:id', async (req, res) => {
+  try {
+    // Verificar se não é o próprio usuário (adicionar validação de token depois)
+    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [req.params.id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    res.json({ message: 'Usuário deletado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao deletar usuário:', error);
+    res.status(500).json({ error: 'Erro ao deletar usuário' });
+  }
+});
+
 module.exports = router;
