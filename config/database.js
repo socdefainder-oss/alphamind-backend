@@ -20,11 +20,10 @@ console.log('🔍 Connection string (sem senha):', urlParts);
 console.log('✓ Criando pool PostgreSQL (Supabase)...');
 
 // Criar pool diretamente com connection string
+// Nota: Supabase pgbouncer pode ser sensível ao modo SSL
 const pool = new Pool({
   connectionString: dbUrl,
-  ssl: {
-    rejectUnauthorized: false
-  },
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
