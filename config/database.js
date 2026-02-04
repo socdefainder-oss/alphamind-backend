@@ -10,20 +10,15 @@ if (!dbUrl) {
   process.exit(1);
 }
 
-// Log temporário para debug (sem mostrar senha)
-const urlParts = dbUrl.replace(/:[^:@]+@/, ':***@');
-console.log('🔍 Connection string (sem senha):', urlParts);
-
 // IMPORTANTE: Supabase pgbouncer requer usar a connection string completa,
 // NÃO resolver o hostname para IPv4. O pgbouncer precisa do hostname
 // para identificar o tenant corretamente.
 console.log('✓ Criando pool PostgreSQL (Supabase)...');
 
 // Criar pool diretamente com connection string
-// Nota: Supabase pgbouncer pode ser sensível ao modo SSL
 const pool = new Pool({
   connectionString: dbUrl,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: true } : false,
+  ssl: { rejectUnauthorized: false },
   max: 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 10000,
