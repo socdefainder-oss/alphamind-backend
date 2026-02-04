@@ -10,6 +10,10 @@ if (!dbUrl) {
   process.exit(1);
 }
 
+// Log temporário para debug (sem mostrar senha)
+const urlParts = dbUrl.replace(/:[^:@]+@/, ':***@');
+console.log('🔍 Connection string (sem senha):', urlParts);
+
 // IMPORTANTE: Supabase pgbouncer requer usar a connection string completa,
 // NÃO resolver o hostname para IPv4. O pgbouncer precisa do hostname
 // para identificar o tenant corretamente.
