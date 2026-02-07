@@ -344,7 +344,7 @@ router.get('/users', async (req, res) => {
         COUNT(DISTINCT p.id) as total_aulas_assistidas
        FROM users u
        LEFT JOIN matriculas m ON u.id = m.aluno_id
-       LEFT JOIN progresso p ON u.id = p.aluno_id
+       LEFT JOIN progresso_aulas p ON u.id = p.aluno_id
        GROUP BY u.id
        ORDER BY u.created_at DESC`
     );
@@ -416,7 +416,7 @@ router.get('/users/:id/progress', async (req, res) => {
        JOIN cursos c ON m.curso_id = c.id
        LEFT JOIN modulos mo ON mo.curso_id = c.id
        LEFT JOIN aulas a ON a.modulo_id = mo.id
-       LEFT JOIN progresso p ON p.aula_id = a.id AND p.aluno_id = m.aluno_id
+       LEFT JOIN progresso_aulas p ON p.aula_id = a.id AND p.aluno_id = m.aluno_id
        WHERE m.aluno_id = $1
        GROUP BY c.id, c.titulo
        ORDER BY c.titulo`,
