@@ -343,8 +343,8 @@ router.get('/users', async (req, res) => {
         COUNT(DISTINCT m.curso_id) as total_cursos_matriculados,
         COUNT(DISTINCT p.id) as total_aulas_assistidas
        FROM users u
-       LEFT JOIN matriculas m ON u.id = m.user_id
-       LEFT JOIN progresso p ON u.id = p.user_id
+       LEFT JOIN matriculas m ON u.id = m.aluno_id
+       LEFT JOIN progresso p ON u.id = p.aluno_id
        GROUP BY u.id
        ORDER BY u.created_at DESC`
     );
@@ -372,10 +372,10 @@ router.get('/users/:id', async (req, res) => {
 
     // Buscar cursos matriculados
     const cursosResult = await query(
-      `SELECT c.id, c.titulo, m.data_matricula, m.progresso
+      `SELECT c.id, c.titulo, m.data_matricula
        FROM matriculas m
        JOIN cursos c ON m.curso_id = c.id
-       WHERE m.user_id = $1
+       WHERE m.aluno_id = $1
        ORDER BY m.data_matricula DESC`,
       [req.params.id]
     );
@@ -397,7 +397,12 @@ router.get('/users/:id/progress', async (req, res) => {
       `SELECT 
         c.id as curso_id,
         c.titulo as curso_titulo,
-        m.progresso as progresso_geral,
+        COALESCE(
+          ROUND(
+            (COUNT(DISTINCT CASE WHEN p.concluido = true THEN p.aula_id END)::numeric / 
+             NULLIF(COUNT(DISTINCT a.id), 0) * 100), 0
+          ), 0
+        ) as progresso_geral,
         json_agg(
           json_build_object(
             'aula_id', a.id,
@@ -411,9 +416,9 @@ router.get('/users/:id/progress', async (req, res) => {
        JOIN cursos c ON m.curso_id = c.id
        LEFT JOIN modulos mo ON mo.curso_id = c.id
        LEFT JOIN aulas a ON a.modulo_id = mo.id
-       LEFT JOIN progresso p ON p.aula_id = a.id AND p.user_id = m.user_id
-       WHERE m.user_id = $1
-       GROUP BY c.id, c.titulo, m.progresso
+       LEFT JOIN progresso p ON p.aula_id = a.id AND p.aluno_id = m.aluno_id
+       WHERE m.aluno_id = $1
+       GROUP BY c.id, c.titulo
        ORDER BY c.titulo`,
       [req.params.id]
     );
