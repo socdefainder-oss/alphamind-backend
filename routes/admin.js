@@ -408,7 +408,7 @@ router.get('/users/:id/progress', async (req, res) => {
             'aula_id', a.id,
             'aula_titulo', a.titulo,
             'modulo_titulo', mo.titulo,
-            'assistido_em', p.assistido_em,
+            'assistido_em', p.data_conclusao,
             'concluido', p.concluido
           ) ORDER BY mo.ordem, a.ordem
         ) as aulas
